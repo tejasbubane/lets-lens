@@ -144,8 +144,7 @@ modify ::
   -> (b -> b)
   -> a
   -> a
-modify =
-  error "todo: modify"
+modify (Lens s g) bTob a = s a $ bTob $ g a
 
 -- | An alias for @modify@.
 (%~) ::
@@ -174,8 +173,7 @@ infixr 4 %~
   -> b
   -> a
   -> a
-(.~) =
-  error "todo: (.~)"
+(.~) (Lens aba _) b a = aba a b
 
 infixl 5 .~
 
@@ -195,8 +193,7 @@ fmodify ::
   -> (b -> f b)
   -> a
   -> f a
-fmodify =
-  error "todo: fmodify"
+fmodify (Lens aba ab) bFb a = fmap (aba a) $ bFb $ ab a
 
 -- |
 --
@@ -211,8 +208,7 @@ fmodify =
   -> f b
   -> a
   -> f a
-(|=) =
-  error "todo: (|=)"
+(|=) (Lens aba _) fb a = aba a <$> fb
 
 infixl 5 |=
 
@@ -229,7 +225,9 @@ infixl 5 |=
 fstL ::
   Lens (x, y) x
 fstL =
-  error "todo: fstL"
+  Lens
+    (\(_, y) x' -> (x', y))
+    (\(x, _) -> x)
 
 -- |
 --
@@ -244,7 +242,9 @@ fstL =
 sndL ::
   Lens (x, y) y
 sndL =
-  error "todo: sndL"
+  Lens
+    (\(x, _) y' -> (x, y'))
+    (\(_, y) -> y)
 
 -- |
 --
@@ -269,8 +269,12 @@ mapL ::
   Ord k =>
   k
   -> Lens (Map k v) (Maybe v)
-mapL =
-  error "todo: mapL"
+mapL k =
+  Lens
+    (\m mv -> case mv of
+               Just v  -> Map.insert k v m
+               Nothing -> Map.delete k m)
+    (Map.lookup k)
 
 -- |
 --
@@ -295,8 +299,12 @@ setL ::
   Ord k =>
   k
   -> Lens (Set k) Bool
-setL =
-  error "todo: setL"
+setL k =
+  Lens
+    (\s v -> case v of
+               True -> Set.insert k s
+               False -> Set.delete k s)
+    (Set.member k)
 
 -- |
 --
@@ -309,8 +317,8 @@ compose ::
   Lens b c
   -> Lens a b
   -> Lens a c
-compose =
-  error "todo: compose"
+compose (Lens bcb bc) (Lens aba ab) =
+  Lens (\a -> aba a . bcb (ab a)) (bc . ab)
 
 -- | An alias for @compose@.
 (|.) ::
@@ -331,8 +339,7 @@ infixr 9 |.
 -- 4
 identity ::
   Lens a a
-identity =
-  error "todo: identity"
+identity = Lens (\_ a -> a) (\a -> a)
 
 -- |
 --
@@ -345,8 +352,8 @@ product ::
   Lens a b
   -> Lens c d
   -> Lens (a, c) (b, d)
-product =
-  error "todo: product"
+product (Lens aba ab) (Lens cdc cd) =
+  Lens (\(a, c) (b, d) -> (aba a b, cdc c d)) (\(a, c) -> (ab a, cd c))
 
 -- | An alias for @product@.
 (***) ::
@@ -375,8 +382,15 @@ choice ::
   Lens a x
   -> Lens b x
   -> Lens (Either a b) x
-choice =
-  error "todo: choice"
+choice (Lens axa ax) (Lens bxa bx) =
+  Lens
+  (\eab x -> case eab of
+      Left a  -> Left $ axa a x
+      Right b -> Right $ bxa b x)
+  (\eab -> case eab of
+      Left a -> ax a
+      Right b -> bx b)
+
 
 -- | An alias for @choice@.
 (|||) ::
@@ -463,8 +477,7 @@ addressL =
 getSuburb ::
   Person
   -> String
-getSuburb =
-  error "todo: getSuburb"
+getSuburb = get $ suburbL |. addressL
 
 -- |
 --
@@ -477,8 +490,7 @@ setStreet ::
   Person
   -> String
   -> Person
-setStreet =
-  error "todo: setStreet"
+setStreet = set $ streetL |. addressL
 
 -- |
 --
@@ -490,8 +502,7 @@ setStreet =
 getAgeAndCountry ::
   (Person, Locality)
   -> (Int, String)
-getAgeAndCountry =
-  error "todo: getAgeAndCountry"
+getAgeAndCountry = get $ ageL *** countryL
 
 -- |
 --
@@ -502,9 +513,8 @@ getAgeAndCountry =
 -- (Person 28 "Mary" (Address "83 Mary Ln" "Maryland" (Locality "Some Other City" "Western Mary" "Maristan")),Address "15 Fred St" "Fredville" (Locality "Mary Mary" "Western Mary" "Maristan"))
 setCityAndLocality ::
   (Person, Address) -> (String, Locality) -> (Person, Address)
-setCityAndLocality =
-  error "todo: setCityAndLocality"
-  
+setCityAndLocality = set $ (cityL |. localityL |. addressL) *** localityL
+
 -- |
 --
 -- >>> getSuburbOrCity (Left maryAddress)
@@ -515,8 +525,7 @@ setCityAndLocality =
 getSuburbOrCity ::
   Either Address Locality
   -> String
-getSuburbOrCity =
-  error "todo: getSuburbOrCity"
+getSuburbOrCity = get $ suburbL ||| cityL
 
 -- |
 --
@@ -529,8 +538,7 @@ setStreetOrState ::
   Either Person Locality
   -> String
   -> Either Person Locality
-setStreetOrState =
-  error "todo: setStreetOrState"
+setStreetOrState = set $ streetL |. addressL ||| stateL
 
 -- |
 --
@@ -542,5 +550,4 @@ setStreetOrState =
 modifyCityUppercase ::
   Person
   -> Person
-modifyCityUppercase =
-  error "todo: modifyCityUppercase"
+modifyCityUppercase = cityL |. localityL |. addressL %~ map toUpper
